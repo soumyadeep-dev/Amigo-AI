@@ -107,18 +107,17 @@ def clear_chat_history():
     conn.commit()
     conn.close()
 
-def insert_client_from_file(name, project, status, last_contact, payment_status):
+def insert_client_from_file(name, project, status, last_contact, payment_status, invoice=0):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Check if client already exists
-    cursor.execute("SELECT id FROM clients WHERE name = ?", (name,))
+    cursor.execute("SELECT id FROM clients WHERE name = ? AND project = ?", (name, project))
     existing = cursor.fetchone()
 
     if not existing:
         cursor.execute(
-            "INSERT INTO clients (name, project, status, last_contact, payment_status) VALUES (?, ?, ?, ?, ?)",
-            (name, project, status, last_contact, payment_status)
+            "INSERT INTO clients (name, project, status, last_contact, payment_status, invoice_amount) VALUES (?, ?, ?, ?, ?, ?)",
+            (name, project, status, last_contact, payment_status, invoice or 0)
         )
         conn.commit()
 

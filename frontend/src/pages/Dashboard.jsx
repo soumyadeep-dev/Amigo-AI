@@ -125,11 +125,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchAll()
-    if (!sessionStorage.getItem('briefing')) {
-      fetchBriefing()
-    } else {
-      setBriefing(sessionStorage.getItem('briefing'))
-    }
+    fetchBriefing()
   }, [])
 
   async function fetchAll() {
@@ -147,7 +143,6 @@ export default function Dashboard() {
     setLoadingBriefing(true)
     const res = await getBriefing()
     setBriefing(res.data.briefing)
-    sessionStorage.setItem('briefing', res.data.briefing)
     setLoadingBriefing(false)
   }
 
