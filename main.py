@@ -128,19 +128,9 @@ def clear_history():
     return {"message": "Cleared"}
 
 # ─── AI ──────────────────────────────────────
-briefing_cache = {"text": "", "timestamp": 0}
-
 @app.get("/briefing")
 def briefing():
-    now = time.time()
-    # Cache for 5 minutes (300 seconds)
-    if briefing_cache["text"] and (now - briefing_cache["timestamp"]) < 300:
-        return {"briefing": briefing_cache["text"]}
-    
-    result = get_daily_briefing()
-    briefing_cache["text"]      = result
-    briefing_cache["timestamp"] = now
-    return {"briefing": result}
+    return {"briefing": get_daily_briefing()}
 
 @app.post("/email/draft")
 def draft_email(req: EmailRequest):

@@ -6,12 +6,13 @@ from datetime import date
 from database import insert_client_from_file, insert_log_for_client
 
 # Column name variations people might use
-NAME_COLS      = ["name", "client", "client name", "company", "business"]
-PROJECT_COLS   = ["project", "project name", "work", "service", "job"]
-STATUS_COLS    = ["status", "project status", "state"]
-PAYMENT_COLS   = ["payment", "payment status", "paid", "payment_status"]
-CONTACT_COLS   = ["last contact", "last_contact", "date", "contact date", "last seen"]
-NOTES_COLS     = ["notes", "note", "update", "updates", "comments", "description"]
+NAME_COLS    = ["name", "client", "client name", "company", "business"]
+PROJECT_COLS = ["project", "project name", "work", "service", "job"]
+STATUS_COLS  = ["status", "project status", "state"]
+PAYMENT_COLS = ["payment", "payment status", "paid", "payment_status"]
+CONTACT_COLS = ["last contact", "last_contact", "date", "contact date", "last seen"]
+NOTES_COLS   = ["notes", "note", "update", "updates", "comments", "description"]
+INVOICE_COLS = ["invoice", "invoice amount", "amount", "fee", "price", "cost", "invoice_amount"]
 
 def match_col(columns, options):
     """Find matching column name case-insensitively"""
@@ -36,6 +37,7 @@ def try_insert_as_clients(df):
     payment_col = match_col(cols, PAYMENT_COLS)
     contact_col = match_col(cols, CONTACT_COLS)
     notes_col   = match_col(cols, NOTES_COLS)
+    invoice_col = match_col(cols, INVOICE_COLS)
 
     inserted = 0
     today    = str(date.today())
@@ -51,7 +53,22 @@ def try_insert_as_clients(df):
         payment_status = str(row[payment_col]).strip() if payment_col and str(row[payment_col]) != "nan" else "pending"
         last_contact   = str(row[contact_col]).strip() if contact_col and str(row[contact_col]) != "nan" else today
 
-        insert_client_from_file(name, project, status, last_contact, payment_status)
+        # Parse invoice amount — strip ₹, commas, spaces
+        invoice = 0
+        if invoice_col and str(row[invoice_col]) != "nan":
+            try:
+                invoice = float(
+                    str(row[invoice_col])
+                    .replace(',', '')
+                    .replace('₹', '')
+                    .replace('Rs', '')
+                    .replace('rs', '')
+                    .strip()
+                )
+            except:
+                invoice = 0
+
+        insert_client_from_file(name, project, status, last_contact, payment_status, invoice)
 
         # Insert notes as a log entry
         if notes_col and str(row[notes_col]) != "nan":
