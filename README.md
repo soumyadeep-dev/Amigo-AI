@@ -32,7 +32,7 @@ Before running Amigo AI, ensure all the following are installed on your machine:
 | FastAPI          | REST API framework     | pip install fastapi          |
 | Uvicorn          | ASGI server            | pip install uvicorn          |
 | Ollama           | Local AI model runner  | ollama.com                   |
-| llama3.2:3b      | AI model               | ollama pull llama3.2:3b      |
+| llama3.1:8b      | AI model               | ollama pull llama3.1:8b      |
 | pandas           | Excel/CSV parsing      | pip install pandas           |
 | openpyxl         | Excel file support     | pip install openpyxl         |
 | python-pptx      | PowerPoint parsing     | pip install python-pptx      |
@@ -51,7 +51,7 @@ _💡 Tip: If you use start.bat to launch the app, it will automatically check a
 
 Download and install Ollama from <https://ollama.com>. Once installed, open a terminal and pull the AI model:
 
-ollama pull llama3.2:3b
+ollama pull llama3.1:8b
 
 ## **Step 2 - Install Python dependencies**
 
@@ -254,7 +254,7 @@ Double click stop.bat in the project root folder. This will shut down the backen
 ### **AI briefing shows an error**
 
 - Check that Ollama is running - open a terminal and type: ollama ps
-- Make sure you pulled the model: ollama pull llama3.2:3b
+- Make sure you pulled the model: ollama pull llama3.1:8b
 
 ### **Excel upload shows 0 clients added**
 
