@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { getClients, getRevenue, getMonthlyRevenue, getBriefing } from '../api'
-import { TrendingUp, Users, AlertCircle, CheckCircle, Clock, IndianRupee, RefreshCw, Loader2 } from 'lucide-react'
+import { TrendingUp, Users, AlertCircle, CheckCircle, Clock, IndianRupee, RefreshCw, Loader2, AlertTriangle, PauseCircle, PlayCircle } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const STATUS_COLORS = {
   'in progress': '#3b82f6',
@@ -38,80 +40,101 @@ function MetricCard({ label, value, icon: Icon, color = 'blue', sub }) {
 function BriefingRenderer({ text }) {
   if (!text) return null
 
-  const priorityConfig = {
-    'high':   { color: 'bg-red-50 border-red-200',    dot: 'bg-red-500',   label: 'High Priority',   labelColor: 'text-red-600'   },
-    'medium': { color: 'bg-amber-50 border-amber-200', dot: 'bg-amber-500', label: 'Medium Priority', labelColor: 'text-amber-600' },
-    'low':    { color: 'bg-blue-50 border-blue-200',   dot: 'bg-blue-400',  label: 'Low Priority',    labelColor: 'text-blue-600'  },
+  // 1. The Regex Magic: We look for the keywords we programmed in brain.py
+  const urgentMatch = text.match(/URGENT.*?:([\s\S]*?)(?=(?:2\.|STALLED|3\.|NEXT STEPS|$))/i);
+  const stalledMatch = text.match(/STALLED.*?:([\s\S]*?)(?=(?:3\.|NEXT STEPS|$))/i);
+  const stepsMatch = text.match(/NEXT STEPS.*?:([\s\S]*?)(?=$)/i);
+
+  // 2. The Fallback: If the AI ignores the rules and writes a normal paragraph, render it beautifully anyway
+  if (!urgentMatch && !stalledMatch && !stepsMatch) {
+    return (
+      <div className="text-sm text-gray-700 leading-relaxed bg-gray-50 p-5 rounded-xl border border-gray-100">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      </div>
+    )
   }
 
-  const lines    = text.split('\n').filter(l => l.trim())
-  const sections = []
-  let current    = null
+  // 2. The Artifact Cleaner (Strips stray ** from the start and end of blocks)
+  const cleanArtifacts = (str) => {
+    if (!str) return "";
+    return str
+      .replace(/^[^\n]*\*\*\s*\n/, '') // removes bolded header remainders on line 1
+      .replace(/\*\*\s*$/, '')         // removes trailing asterisks at the very end
+      .trim();
+  };
 
-  for (const line of lines) {
-    const clean = line.replace(/\*\*/g, '').trim()
+  // 3. Extract and Clean
+  const urgentText = urgentMatch ? cleanArtifacts(urgentMatch[1]) : "No urgent payment tasks today.";
+  const stalledText = stalledMatch ? cleanArtifacts(stalledMatch[1]) : "No stalled projects right now.";
+  const stepsText = stepsMatch ? cleanArtifacts(stepsMatch[1]) : "Keep up the good work!";
 
-    if (/high priority/i.test(clean)) {
-      current = { type: 'high', items: [] }
-      sections.push(current)
-    } else if (/medium priority/i.test(clean)) {
-      current = { type: 'medium', items: [] }
-      sections.push(current)
-    } else if (/low priority/i.test(clean)) {
-      current = { type: 'low', items: [] }
-      sections.push(current)
-    } else if (current && /^\d+\./.test(line.trim())) {
-      const itemText = clean.replace(/^\d+\.\s*/, '')
-      const colonIdx = itemText.indexOf(':')
-      if (colonIdx > -1) {
-        current.items.push({
-          title: itemText.slice(0, colonIdx).trim(),
-          desc:  itemText.slice(colonIdx + 1).trim()
-        })
-      } else {
-        current.items.push({ title: '', desc: itemText })
-      }
-    } else if (!current && clean && !/priority briefing/i.test(clean)) {
-      sections.push({ type: 'intro', text: clean })
-    }
-  }
+  // 3. Reusable Markdown component to keep the text colors matching their cards
+  // 3. Reusable Markdown component with full table support
+  const StyledMarkdown = ({ children, textColor }) => (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        ul: ({node, ...props}) => <ul className="list-disc pl-5 my-2 space-y-1" {...props} />,
+        li: ({node, ...props}) => <li className={`${textColor}`} {...props} />,
+        strong: ({node, ...props}) => <strong className="font-semibold text-gray-900" {...props} />,
+        p: ({node, ...props}) => <p className={`${textColor} mb-2 last:mb-0`} {...props} />,
+        
+        // --- ADDED TABLE STYLING HERE ---
+        table: ({node, ...props}) => (
+          <div className="overflow-x-auto my-3 rounded-lg border border-gray-200 shadow-sm bg-white">
+            <table className="min-w-full divide-y divide-gray-200" {...props} />
+          </div>
+        ),
+        thead: ({node, ...props}) => <thead className="bg-gray-50" {...props} />,
+        th: ({node, ...props}) => (
+          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider" {...props} />
+        ),
+        tbody: ({node, ...props}) => <tbody className="divide-y divide-gray-100 bg-white" {...props} />,
+        td: ({node, ...props}) => (
+          <td className="px-3 py-2 text-sm text-gray-800 whitespace-nowrap" {...props} />
+        ),
+      }}
+    >
+      {children}
+    </ReactMarkdown>
+  );
 
   return (
     <div className="flex flex-col gap-4">
-      {sections.map((section, i) => {
-        if (section.type === 'intro') {
-          return (
-            <p key={i} className="text-sm text-gray-500 leading-relaxed">
-              {section.text}
-            </p>
-          )
-        }
+      
+      {/* 🔴 URGENT CARD (Payments/Money) */}
+      <div className="bg-red-50 border border-red-100 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle size={16} className="text-red-500" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-red-700">Urgent Actions</h3>
+        </div>
+        <div className="text-sm leading-relaxed ml-6">
+          <StyledMarkdown textColor="text-red-900">{urgentText}</StyledMarkdown>
+        </div>
+      </div>
 
-        const cfg = priorityConfig[section.type]
-        return (
-          <div key={i} className={`rounded-xl border p-4 ${cfg.color}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-              <span className={`text-xs font-bold uppercase tracking-wider ${cfg.labelColor}`}>
-                {cfg.label}
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {section.items.map((item, j) => (
-                <div key={j} className="flex items-start gap-2.5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${cfg.dot} mt-1.5 shrink-0`} />
-                  <p className="text-sm text-gray-700 leading-relaxed">
-                    {item.title && (
-                      <span className="font-semibold text-gray-900">{item.title}: </span>
-                    )}
-                    {item.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
+      {/* 🟡 STALLED CARD (Blocked Projects) */}
+      <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <PauseCircle size={16} className="text-amber-500" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700">Stalled Projects</h3>
+        </div>
+        <div className="text-sm leading-relaxed ml-6">
+          <StyledMarkdown textColor="text-amber-900">{stalledText}</StyledMarkdown>
+        </div>
+      </div>
+
+      {/* 🔵 NEXT STEPS CARD (General Workflow) */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <PlayCircle size={16} className="text-blue-500" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700">Next Steps</h3>
+        </div>
+        <div className="text-sm leading-relaxed ml-6">
+          <StyledMarkdown textColor="text-blue-900">{stepsText}</StyledMarkdown>
+        </div>
+      </div>
+
     </div>
   )
 }
