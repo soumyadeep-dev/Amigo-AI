@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getClients, updateClientStatus, getTasks, createTask, updateTaskStatus, deleteTask } from '../api'
+import { getClients, updateClient, getTasks, createTask, updateTaskStatus, deleteTask } from '../api'
 import { Plus, Trash2, ChevronLeft, ChevronRight, Bell } from 'lucide-react'
 
 const TASK_COLUMNS = [
@@ -53,6 +54,13 @@ export default function Kanban() {
 
     await updateClientStatus(client.id, newStatus)
     localStorage.setItem('clients:last_status_update', String(Date.now()))
+    await updateClient(client.id, {
+      name: client.name,
+      project: client.project,
+      status: newStatus,
+      last_contact: client.last_contact?.slice(0, 10),
+      payment_status: client.payment_status
+    })
 
     await fetchAll()
   }
