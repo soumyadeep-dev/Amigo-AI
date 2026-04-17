@@ -14,7 +14,8 @@ from database import (
     delete_client, add_log, get_logs_for_client,
     save_message, get_last_messages, clear_chat_history,
     save_uploaded_file, get_uploaded_files,
-    update_invoice_amount, get_revenue_stats, get_monthly_revenue
+    update_invoice_amount, get_revenue_stats, get_monthly_revenue,
+    get_tasks, add_task, update_task, update_task_status, delete_task
 )
 
 # IMPORT build_vector_store so we can trigger memory updates
@@ -58,6 +59,24 @@ class EmailRequest(BaseModel):
 
 class InvoiceUpdate(BaseModel):
     amount: float
+
+class TaskModel(BaseModel):
+    title: str
+    client_id: Optional[int] = None
+    status: str = "todo"
+    due_date: Optional[str] = None
+    reminder_date: Optional[str] = None
+
+class TaskStatusUpdate(BaseModel):
+    status: str
+
+class TaskUpdateModel(BaseModel):
+    title: str
+    client_id: Optional[int] = None
+    status: str
+    due_date: Optional[str] = None
+    reminder_date: Optional[str] = None
+    completed: int = 0
 
 # ─── Clients ─────────────────────────────────
 @app.get("/clients")
@@ -120,6 +139,50 @@ def revenue():
 def monthly_revenue():
     rows = get_monthly_revenue()
     return [{"month": r[0], "earned": r[1]} for r in rows]
+
+# ─── Tasks + Reminders ──────────────────────
+@app.get("/tasks")
+def list_tasks():
+    rows = get_tasks()
+    keys = [
+        "id", "title", "client_id", "status", "due_date",
+        "reminder_date", "completed", "created_at", "client_name"
+    ]
+    return [dict(zip(keys, r)) for r in rows]
+
+@app.post("/tasks")
+def create_task(task: TaskModel):
+    add_task(
+        title=task.title,
+        client_id=task.client_id,
+        status=task.status,
+        due_date=task.due_date,
+        reminder_date=task.reminder_date
+    )
+    return {"message": "Task created"}
+
+@app.put("/tasks/{task_id}")
+def edit_task(task_id: int, task: TaskUpdateModel):
+    update_task(
+        task_id=task_id,
+        title=task.title,
+        client_id=task.client_id,
+        status=task.status,
+        due_date=task.due_date,
+        reminder_date=task.reminder_date,
+        completed=task.completed
+    )
+    return {"message": "Task updated"}
+
+@app.patch("/tasks/{task_id}/status")
+def edit_task_status(task_id: int, body: TaskStatusUpdate):
+    update_task_status(task_id, body.status)
+    return {"message": "Task status updated"}
+
+@app.delete("/tasks/{task_id}")
+def remove_task(task_id: int):
+    delete_task(task_id)
+    return {"message": "Task deleted"}
 
 # ─── Chat ────────────────────────────────────
 @app.post("/chat")
