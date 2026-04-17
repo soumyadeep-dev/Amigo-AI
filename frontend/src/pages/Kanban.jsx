@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getClients, updateClientStatus, getTasks, createTask, updateTaskStatus, deleteTask } from '../api'
 import { getClients, updateClient, getTasks, createTask, updateTaskStatus, deleteTask } from '../api'
 import { Plus, Trash2, ChevronLeft, ChevronRight, Bell } from 'lucide-react'
 
@@ -51,6 +52,8 @@ export default function Kanban() {
     const newStatus = nextStatus(client.status, direction, statuses)
     if (newStatus === client.status) return
 
+    await updateClientStatus(client.id, newStatus)
+    localStorage.setItem('clients:last_status_update', String(Date.now()))
     await updateClient(client.id, {
       name: client.name,
       project: client.project,

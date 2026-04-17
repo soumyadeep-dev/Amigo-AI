@@ -60,6 +60,9 @@ class EmailRequest(BaseModel):
 class InvoiceUpdate(BaseModel):
     amount: float
 
+class ClientStatusUpdate(BaseModel):
+    status: str
+
 class TaskModel(BaseModel):
     title: str
     client_id: Optional[int] = None
@@ -105,6 +108,23 @@ def edit_client(client_id: int, client: ClientModel):
     )
     build_vector_store() # REFRESH AI MEMORY
     return {"message": "Client updated"}
+
+@app.patch("/clients/{client_id}/status")
+def edit_client_status(client_id: int, body: ClientStatusUpdate):
+    client = get_client_by_id(client_id)
+    if not client:
+        return {"message": "Client not found"}
+
+    update_client(
+        client_id,
+        client[1],  # name
+        client[2],  # project
+        body.status,
+        client[4],  # last_contact
+        client[5],  # payment_status
+    )
+    build_vector_store() # REFRESH AI MEMORY
+    return {"message": "Client status updated"}
 
 @app.delete("/clients/{client_id}")
 def remove_client(client_id: int):

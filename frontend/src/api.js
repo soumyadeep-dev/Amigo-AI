@@ -6,6 +6,7 @@ const api = axios.create({ baseURL: '/api' })
 export const getClients    = ()                => api.get('/clients')
 export const createClient  = (data)            => api.post('/clients', data)
 export const updateClient  = (id, data)        => api.put(`/clients/${id}`, data)
+export const updateClientStatus = (id, status) => api.patch(`/clients/${id}/status`, { status })
 export const deleteClient  = (id)              => api.delete(`/clients/${id}`)
 export const setInvoice    = (id, amount)      => api.put(`/clients/${id}/invoice`, { amount })
 
