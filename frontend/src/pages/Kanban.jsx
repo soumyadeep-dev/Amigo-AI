@@ -49,7 +49,6 @@ export default function Kanban() {
   const [clients, setClients] = useState([])
   const [tasks, setTasks] = useState([])
   const [editTask, setEditTask] = useState(null)
-  const [dateInputMode, setDateInputMode] = useState({ due: false, reminder: false })
   const [newTask, setNewTask] = useState({
     title: '',
     client_id: '',
@@ -163,28 +162,24 @@ export default function Kanban() {
             ))}
           </select>
           <div className="space-y-1">
-            <p className="text-xs text-gray-500 px-1">Due data</p>
+            <p className="text-xs text-gray-500 px-1">Due date</p>
             <input
-              type={dateInputMode.due || newTask.due_date ? 'date' : 'text'}
+              type="date"
               value={newTask.due_date}
               onChange={e => setNewTask(v => ({ ...v, due_date: e.target.value }))}
-              onFocus={() => setDateInputMode(v => ({ ...v, due: true }))}
-              onBlur={() => setDateInputMode(v => ({ ...v, due: false }))}
-              placeholder="Due data"
-              title="Due data"
+              placeholder="Due date"
+              title="Due date"
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
             />
           </div>
           <div className="space-y-1">
-            <p className="text-xs text-gray-500 px-1">Reminder</p>
+            <p className="text-xs text-gray-500 px-1">Reminder date</p>
             <input
-              type={dateInputMode.reminder || newTask.reminder_date ? 'date' : 'text'}
+              type="date"
               value={newTask.reminder_date}
               onChange={e => setNewTask(v => ({ ...v, reminder_date: e.target.value }))}
-              onFocus={() => setDateInputMode(v => ({ ...v, reminder: true }))}
-              onBlur={() => setDateInputMode(v => ({ ...v, reminder: false }))}
-              placeholder="Reminder"
-              title="Reminder"
+              placeholder="Reminder date"
+              title="Reminder date"
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
             />
           </div>
@@ -299,18 +294,14 @@ export default function Kanban() {
                 type="date"
                 value={editTask.due_date}
                 onChange={e => setEditTask(t => ({ ...t, due_date: e.target.value }))}
-                placeholder="Due data"
-                title="Due data"
-                aria-label="Due data"
+                title="Due date"
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
               <input
                 type="date"
                 value={editTask.reminder_date}
                 onChange={e => setEditTask(t => ({ ...t, reminder_date: e.target.value }))}
-                placeholder="Reminder"
-                title="Reminder"
-                aria-label="Reminder"
+                title="Reminder date"
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
             </div>
