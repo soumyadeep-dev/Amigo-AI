@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getClients, updateClientStatus, getTasks, createTask, updateTaskStatus, deleteTask } from '../api'
-import { updateClient, updateTaskStatus } from '../api'
+import { updateClient } from '../api'
 import { Plus, Trash2, ChevronLeft, ChevronRight, Bell } from 'lucide-react'
 
 const TASK_COLUMNS = [
