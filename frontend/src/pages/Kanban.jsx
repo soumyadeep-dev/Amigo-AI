@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getClients, updateClientStatus, getTasks, createTask, updateTaskStatus, deleteTask } from '../api'
+import { getClients, updateClientStatus, getTasks, createTask, updateTask, updateTaskStatus, deleteTask } from '../api'
 import { updateClient } from '../api'
-import { Plus, Trash2, ChevronLeft, ChevronRight, Bell } from 'lucide-react'
+import { Plus, Trash2, ChevronLeft, ChevronRight, Bell, Pencil, X } from 'lucide-react'
 
 const TASK_COLUMNS = [
   { key: 'todo', label: 'To Do' },
@@ -29,9 +29,27 @@ function nextStatus(current, direction, statuses) {
   return statuses[next]
 }
 
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <h3 className="font-semibold text-gray-900">{title}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  )
+}
+
 export default function Kanban() {
   const [clients, setClients] = useState([])
   const [tasks, setTasks] = useState([])
+  const [editTask, setEditTask] = useState(null)
+  const [dateInputMode, setDateInputMode] = useState({ due: false, reminder: false })
   const [newTask, setNewTask] = useState({
     title: '',
     client_id: '',
@@ -88,6 +106,30 @@ export default function Kanban() {
     await fetchAll()
   }
 
+  function openTaskEditor(task) {
+    setEditTask({
+      ...task,
+      client_id: task.client_id ? String(task.client_id) : '',
+      due_date: task.due_date ? task.due_date.slice(0, 10) : '',
+      reminder_date: task.reminder_date ? task.reminder_date.slice(0, 10) : ''
+    })
+  }
+
+  async function handleEditTask() {
+    if (!editTask?.title?.trim()) return
+
+    await updateTask(editTask.id, {
+      title: editTask.title,
+      client_id: editTask.client_id ? Number(editTask.client_id) : null,
+      status: editTask.status,
+      due_date: editTask.due_date || null,
+      reminder_date: editTask.reminder_date || null
+    })
+
+    setEditTask(null)
+    await fetchAll()
+  }
+
   const reminders = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
     return tasks.filter(t => t.status !== 'done' && t.reminder_date && t.reminder_date <= today)
@@ -120,18 +162,32 @@ export default function Kanban() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <input
-            type="date"
-            value={newTask.due_date}
-            onChange={e => setNewTask(v => ({ ...v, due_date: e.target.value }))}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
-          />
-          <input
-            type="date"
-            value={newTask.reminder_date}
-            onChange={e => setNewTask(v => ({ ...v, reminder_date: e.target.value }))}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
-          />
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500 px-1">Due data</p>
+            <input
+              type={dateInputMode.due || newTask.due_date ? 'date' : 'text'}
+              value={newTask.due_date}
+              onChange={e => setNewTask(v => ({ ...v, due_date: e.target.value }))}
+              onFocus={() => setDateInputMode(v => ({ ...v, due: true }))}
+              onBlur={() => setDateInputMode(v => ({ ...v, due: false }))}
+              placeholder="Due data"
+              title="Due data"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500 px-1">Reminder</p>
+            <input
+              type={dateInputMode.reminder || newTask.reminder_date ? 'date' : 'text'}
+              value={newTask.reminder_date}
+              onChange={e => setNewTask(v => ({ ...v, reminder_date: e.target.value }))}
+              onFocus={() => setDateInputMode(v => ({ ...v, reminder: true }))}
+              onBlur={() => setDateInputMode(v => ({ ...v, reminder: false }))}
+              placeholder="Reminder"
+              title="Reminder"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full"
+            />
+          </div>
           <button
             onClick={handleCreateTask}
             className="bg-gray-900 text-white rounded-lg text-sm font-medium px-3 py-2 hover:bg-gray-700 flex items-center justify-center gap-2"
@@ -178,7 +234,10 @@ export default function Kanban() {
                           <button onClick={() => moveTask(task, -1)} className="p-1.5 rounded bg-white border border-gray-200"><ChevronLeft size={14} /></button>
                           <button onClick={() => moveTask(task, 1)} className="p-1.5 rounded bg-white border border-gray-200"><ChevronRight size={14} /></button>
                         </div>
-                        <button onClick={async () => { await deleteTask(task.id); await fetchAll() }} className="p-1.5 rounded bg-red-50 text-red-600"><Trash2 size={14} /></button>
+                        <div className="flex gap-1">
+                          <button onClick={() => openTaskEditor(task)} className="p-1.5 rounded bg-white border border-gray-200 text-gray-600"><Pencil size={14} /></button>
+                          <button onClick={async () => { await deleteTask(task.id); await fetchAll() }} className="p-1.5 rounded bg-red-50 text-red-600"><Trash2 size={14} /></button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -215,6 +274,60 @@ export default function Kanban() {
           })}
         </div>
       </section>
+
+      {editTask && (
+        <Modal title="Edit Task" onClose={() => setEditTask(null)}>
+          <div className="flex flex-col gap-3">
+            <input
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              placeholder="Task title"
+              value={editTask.title}
+              onChange={e => setEditTask(t => ({ ...t, title: e.target.value }))}
+            />
+            <select
+              value={editTask.client_id}
+              onChange={e => setEditTask(t => ({ ...t, client_id: e.target.value }))}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              <option value="">No client</option>
+              {clients.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="date"
+                value={editTask.due_date}
+                onChange={e => setEditTask(t => ({ ...t, due_date: e.target.value }))}
+                title="Due date"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+              <input
+                type="date"
+                value={editTask.reminder_date}
+                onChange={e => setEditTask(t => ({ ...t, reminder_date: e.target.value }))}
+                title="Reminder date"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={handleEditTask}
+                disabled={!editTask.title.trim()}
+                className="flex-1 bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-700 disabled:opacity-50"
+              >
+                Save Changes
+              </button>
+              <button
+                onClick={() => setEditTask(null)}
+                className="flex-1 border border-gray-200 rounded-lg py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
