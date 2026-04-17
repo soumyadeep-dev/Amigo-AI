@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, MessageSquare, Brain } from 'lucide-react'
+import { LayoutDashboard, Users, MessageSquare, Brain, Columns3 } from 'lucide-react'
 
 const links = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/clients',   icon: Users,           label: 'Clients'   },
+  { to: '/kanban',    icon: Columns3,        label: 'Kanban'    },
   { to: '/chat',      icon: MessageSquare,   label: 'Chat'      },
 ]
 

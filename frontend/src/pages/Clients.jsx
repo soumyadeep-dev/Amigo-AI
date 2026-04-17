@@ -130,6 +130,21 @@ export default function Clients() {
 
   useEffect(() => { fetchAll() }, [])
 
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (event.key === 'clients:last_status_update') fetchAll()
+    }
+    const onFocus = () => fetchAll()
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [])
+
   async function fetchAll() {
     const [c, f] = await Promise.all([getClients(), getFiles()])
     setClients(c.data)

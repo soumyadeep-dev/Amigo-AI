@@ -44,6 +44,18 @@ def init_db():
                 raw_content TEXT,
                 uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                client_id INTEGER,
+                status TEXT DEFAULT 'todo',
+                due_date TEXT,
+                reminder_date TEXT,
+                completed INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+            );
         """)
         conn.commit()
 
@@ -56,6 +68,10 @@ def migrate_db():
             cursor.execute("ALTER TABLE clients ADD COLUMN invoice_amount REAL DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # Column already exists
+        try:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN reminder_date TEXT")
+        except sqlite3.OperationalError:
+            pass
         conn.commit()
 
 # ─── Data Retrieval ─────────────────────────────────
@@ -103,6 +119,19 @@ def get_last_messages(limit: int = 50):
         rows = cursor.fetchall()
         return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
 
+def get_tasks():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                t.id, t.title, t.client_id, t.status, t.due_date,
+                t.reminder_date, t.completed, t.created_at, c.name
+            FROM tasks t
+            LEFT JOIN clients c ON c.id = t.client_id
+            ORDER BY t.created_at DESC
+        """)
+        return cursor.fetchall()
+
 # ─── Data Insertion & Updates ───────────────────────
 
 def add_client(name, project, status, last_contact, payment_status, invoice_amount=0.0):
@@ -130,6 +159,7 @@ def delete_client(client_id):
         cursor.execute("DELETE FROM clients WHERE id=?", (client_id,))
         # The ON DELETE CASCADE in the schema handles the logs, but keeping this for safety
         cursor.execute("DELETE FROM logs WHERE client_id=?", (client_id,))
+        cursor.execute("DELETE FROM tasks WHERE client_id=?", (client_id,))
         conn.commit()
 
 def update_invoice_amount(client_id, amount):
@@ -265,4 +295,38 @@ def update_invoice_db(client_id: int, amount: float):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE clients SET invoice_amount=? WHERE id=?", (float(amount), client_id))
+        conn.commit()
+
+def add_task(title, client_id=None, status="todo", due_date=None, reminder_date=None):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO tasks (title, client_id, status, due_date, reminder_date, completed)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (title, client_id, status, due_date, reminder_date, 1 if status == "done" else 0))
+        conn.commit()
+
+def update_task(task_id, title, client_id, status, due_date, reminder_date, completed):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE tasks
+            SET title=?, client_id=?, status=?, due_date=?, reminder_date=?, completed=?
+            WHERE id=?
+        """, (title, client_id, status, due_date, reminder_date, completed, task_id))
+        conn.commit()
+
+def update_task_status(task_id, status):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE tasks SET status=?, completed=? WHERE id=?",
+            (status, 1 if status == "done" else 0, task_id)
+        )
+        conn.commit()
+
+def delete_task(task_id):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
         conn.commit()
