@@ -29,3 +29,10 @@ export const draftEmail    = (data)            => api.post('/email/draft', data)
 // Files
 export const uploadFile    = (formData)        => api.post('/upload', formData)
 export const getFiles      = ()                => api.get('/files')
+
+// Tasks
+export const getTasks      = ()                => api.get('/tasks')
+export const createTask    = (data)            => api.post('/tasks', data)
+export const updateTask    = (id, data)        => api.put(`/tasks/${id}`, data)
+export const updateTaskStatus = (id, status)   => api.patch(`/tasks/${id}/status`, { status })
+export const deleteTask    = (id)              => api.delete(`/tasks/${id}`)
