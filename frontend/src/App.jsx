@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Clients from './pages/Clients'
 import Chat from './pages/Chat'
 import Kanban from './pages/Kanban'
+import TeamSpace from './pages/TeamSpace'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/clients"   element={<Clients />} />
             <Route path="/kanban"    element={<Kanban />} />
+            <Route path="/team-space" element={<TeamSpace />} />
             <Route path="/chat"      element={<Chat />} />
           </Routes>
         </main>
