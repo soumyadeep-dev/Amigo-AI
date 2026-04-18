@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Clients from './pages/Clients'
 import Chat from './pages/Chat'
 import Kanban from './pages/Kanban'
+import CollaborationSpace from './pages/CollaborationSpace'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
             <Route path="/clients"   element={<Clients />} />
             <Route path="/kanban"    element={<Kanban />} />
             <Route path="/chat"      element={<Chat />} />
+            <Route path="/collab"    element={<CollaborationSpace />} />
           </Routes>
         </main>
       </div>
