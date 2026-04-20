@@ -56,7 +56,43 @@ def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS team_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE,
+                role TEXT NOT NULL,
+                status TEXT DEFAULT 'offline',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS collaboration_channels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                topic TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS collaboration_updates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id INTEGER NOT NULL,
+                member_id INTEGER,
+                message TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(channel_id) REFERENCES collaboration_channels(id) ON DELETE CASCADE,
+                FOREIGN KEY(member_id) REFERENCES team_members(id) ON DELETE SET NULL
+            );
         """)
+
+        cursor.executemany(
+            "INSERT OR IGNORE INTO collaboration_channels (name, topic) VALUES (?, ?)",
+            [
+                ("Product Sprint", "Sprint planning + backlog grooming"),
+                ("Design Studio", "Figma reviews + UX decisions"),
+                ("Client Delivery", "Daily delivery updates and blockers"),
+                ("Knowledge Base", "Playbooks, SOPs, snippets")
+            ]
+        )
         conn.commit()
 
 def migrate_db():
@@ -130,6 +166,54 @@ def get_tasks():
             LEFT JOIN clients c ON c.id = t.client_id
             ORDER BY t.created_at DESC
         """)
+        return cursor.fetchall()
+
+
+def get_team_members():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, email, role, status, created_at
+            FROM team_members
+            ORDER BY created_at DESC
+        """)
+        return cursor.fetchall()
+
+
+def get_team_member_by_id(member_id):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, name, email, role, status, created_at FROM team_members WHERE id=?",
+            (member_id,)
+        )
+        return cursor.fetchone()
+
+
+def get_collaboration_channels():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.id, c.name, c.topic, COUNT(u.id) as updates
+            FROM collaboration_channels c
+            LEFT JOIN collaboration_updates u ON u.channel_id = c.id
+            GROUP BY c.id, c.name, c.topic
+            ORDER BY c.name
+        """)
+        return cursor.fetchall()
+
+
+def get_channel_updates(channel_id, limit=30):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.id, u.message, u.created_at, m.id, m.name
+            FROM collaboration_updates u
+            LEFT JOIN team_members m ON m.id = u.member_id
+            WHERE u.channel_id=?
+            ORDER BY u.created_at DESC
+            LIMIT ?
+        """, (channel_id, limit))
         return cursor.fetchall()
 
 # ─── Data Insertion & Updates ───────────────────────
@@ -304,6 +388,63 @@ def add_task(title, client_id=None, status="todo", due_date=None, reminder_date=
             INSERT INTO tasks (title, client_id, status, due_date, reminder_date, completed)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (title, client_id, status, due_date, reminder_date, 1 if status == "done" else 0))
+        conn.commit()
+
+
+def add_team_member(name, email, role, status="offline"):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO team_members (name, email, role, status)
+            VALUES (?, ?, ?, ?)
+            """,
+            (name, email, role, status)
+        )
+        conn.commit()
+
+
+def update_team_member(member_id, name, email, role, status):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE team_members
+            SET name=?, email=?, role=?, status=?
+            WHERE id=?
+            """,
+            (name, email, role, status, member_id)
+        )
+        conn.commit()
+
+
+def delete_team_member(member_id):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM team_members WHERE id=?", (member_id,))
+        conn.commit()
+
+
+def add_collaboration_channel(name, topic):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO collaboration_channels (name, topic) VALUES (?, ?)",
+            (name, topic)
+        )
+        conn.commit()
+
+
+def add_channel_update(channel_id, member_id, message):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO collaboration_updates (channel_id, member_id, message)
+            VALUES (?, ?, ?)
+            """,
+            (channel_id, member_id, message)
+        )
         conn.commit()
 
 def update_task(task_id, title, client_id, status, due_date, reminder_date, completed):

@@ -37,3 +37,14 @@ export const createTask    = (data)            => api.post('/tasks', data)
 export const updateTask    = (id, data)        => api.put(`/tasks/${id}`, data)
 export const updateTaskStatus = (id, status)   => api.patch(`/tasks/${id}/status`, { status })
 export const deleteTask    = (id)              => api.delete(`/tasks/${id}`)
+
+// Team Collaboration
+export const getTeamMembers   = ()              => api.get('/team/members')
+export const createTeamMember = (data)          => api.post('/team/members', data)
+export const updateTeamMember = (id, data)      => api.put(`/team/members/${id}`, data)
+export const deleteTeamMember = (id)            => api.delete(`/team/members/${id}`)
+
+export const getTeamChannels   = ()             => api.get('/team/channels')
+export const createTeamChannel = (data)         => api.post('/team/channels', data)
+export const getChannelUpdates = (channelId)    => api.get(`/team/channels/${channelId}/updates`)
+export const createChannelUpdate = (channelId, data) => api.post(`/team/channels/${channelId}/updates`, data)

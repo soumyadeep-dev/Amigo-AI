@@ -15,7 +15,11 @@ from database import (
     save_message, get_last_messages, clear_chat_history,
     save_uploaded_file, get_uploaded_files,
     update_invoice_amount, get_revenue_stats, get_monthly_revenue,
-    get_tasks, add_task, update_task, update_task_status, delete_task
+    get_tasks, add_task, update_task, update_task_status, delete_task,
+    get_team_members, get_team_member_by_id, add_team_member,
+    update_team_member, delete_team_member,
+    get_collaboration_channels, add_collaboration_channel,
+    get_channel_updates, add_channel_update
 )
 
 # IMPORT build_vector_store so we can trigger memory updates
@@ -80,6 +84,23 @@ class TaskUpdateModel(BaseModel):
     due_date: Optional[str] = None
     reminder_date: Optional[str] = None
     completed: int = 0
+
+
+class TeamMemberModel(BaseModel):
+    name: str
+    email: Optional[str] = None
+    role: str
+    status: str = "offline"
+
+
+class ChannelModel(BaseModel):
+    name: str
+    topic: str = ""
+
+
+class ChannelUpdateModel(BaseModel):
+    member_id: Optional[int] = None
+    message: str
 
 # ─── Clients ─────────────────────────────────
 @app.get("/clients")
@@ -203,6 +224,69 @@ def edit_task_status(task_id: int, body: TaskStatusUpdate):
 def remove_task(task_id: int):
     delete_task(task_id)
     return {"message": "Task deleted"}
+
+
+# ─── Team Collaboration ─────────────────────
+@app.get("/team/members")
+def list_team_members():
+    rows = get_team_members()
+    keys = ["id", "name", "email", "role", "status", "created_at"]
+    return [dict(zip(keys, r)) for r in rows]
+
+
+@app.post("/team/members")
+def create_team_member(member: TeamMemberModel):
+    add_team_member(member.name, member.email, member.role, member.status)
+    return {"message": "Team member created"}
+
+
+@app.put("/team/members/{member_id}")
+def edit_team_member(member_id: int, member: TeamMemberModel):
+    existing = get_team_member_by_id(member_id)
+    if not existing:
+        return {"message": "Team member not found"}
+    update_team_member(member_id, member.name, member.email, member.role, member.status)
+    return {"message": "Team member updated"}
+
+
+@app.delete("/team/members/{member_id}")
+def remove_team_member(member_id: int):
+    delete_team_member(member_id)
+    return {"message": "Team member deleted"}
+
+
+@app.get("/team/channels")
+def list_channels():
+    rows = get_collaboration_channels()
+    keys = ["id", "name", "topic", "updates"]
+    return [dict(zip(keys, r)) for r in rows]
+
+
+@app.post("/team/channels")
+def create_channel(channel: ChannelModel):
+    add_collaboration_channel(channel.name, channel.topic)
+    return {"message": "Channel created"}
+
+
+@app.get("/team/channels/{channel_id}/updates")
+def list_channel_updates(channel_id: int):
+    rows = get_channel_updates(channel_id, limit=30)
+    return [
+        {
+            "id": r[0],
+            "message": r[1],
+            "created_at": r[2],
+            "member_id": r[3],
+            "member_name": r[4] or "System"
+        }
+        for r in rows
+    ]
+
+
+@app.post("/team/channels/{channel_id}/updates")
+def create_channel_update(channel_id: int, body: ChannelUpdateModel):
+    add_channel_update(channel_id, body.member_id, body.message)
+    return {"message": "Update posted"}
 
 # ─── Chat ────────────────────────────────────
 @app.post("/chat")

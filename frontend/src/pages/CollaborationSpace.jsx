@@ -1,27 +1,23 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  Sparkles,
   Users,
   CalendarDays,
-  CheckSquare,
   MessageCircle,
-  FileText,
-  Megaphone,
   ShieldCheck,
   Plus,
-  ChevronRight,
   Clock3,
-  Video,
-  Link as LinkIcon,
-  BrainCircuit
+  Send,
+  Trash2,
 } from 'lucide-react'
-
-const initialChannels = [
-  { name: 'Product Sprint', topic: 'Sprint planning + backlog grooming', active: 14, unread: 3, icon: CheckSquare, color: 'from-blue-500 to-indigo-500' },
-  { name: 'Design Studio', topic: 'Figma reviews + UX decisions', active: 8, unread: 1, icon: Sparkles, color: 'from-fuchsia-500 to-violet-500' },
-  { name: 'Client Delivery', topic: 'Daily delivery updates and blockers', active: 11, unread: 4, icon: Megaphone, color: 'from-emerald-500 to-teal-500' },
-  { name: 'Knowledge Base', topic: 'Playbooks, SOPs, snippets', active: 6, unread: 0, icon: FileText, color: 'from-amber-500 to-orange-500' },
-]
+import {
+  getTeamMembers,
+  createTeamMember,
+  deleteTeamMember,
+  getTeamChannels,
+  createTeamChannel,
+  getChannelUpdates,
+  createChannelUpdate,
+} from '../api'
 
 const upcomingMoments = [
   { label: 'Daily sync standup', time: '09:30 AM', owner: 'Delivery Team' },
@@ -29,23 +25,113 @@ const upcomingMoments = [
   { label: 'Client milestone review', time: '03:00 PM', owner: 'Customer Success' },
 ]
 
-const teamMembers = [
-  { name: 'Aarav', role: 'Product Lead', status: 'In focus mode', dot: 'bg-emerald-400' },
-  { name: 'Mira', role: 'Designer', status: 'Reviewing handoff', dot: 'bg-blue-400' },
-  { name: 'Vihaan', role: 'Engineer', status: 'Pair programming', dot: 'bg-purple-400' },
-  { name: 'Ira', role: 'Ops', status: 'On incident watch', dot: 'bg-amber-400' },
-]
-
 export default function CollaborationSpace() {
-  const [channels, setChannels] = useState(initialChannels)
+  const [teamMembers, setTeamMembers] = useState([])
+  const [channels, setChannels] = useState([])
+  const [selectedChannelId, setSelectedChannelId] = useState(null)
+  const [updates, setUpdates] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const totalUnread = useMemo(
-    () => channels.reduce((sum, c) => sum + c.unread, 0),
+  const [newMember, setNewMember] = useState({ name: '', role: '', email: '', status: 'online' })
+  const [newChannel, setNewChannel] = useState({ name: '', topic: '' })
+  const [newUpdate, setNewUpdate] = useState('')
+  const [posting, setPosting] = useState(false)
+
+  const totalUpdates = useMemo(
+    () => channels.reduce((sum, c) => sum + (c.updates || 0), 0),
     [channels]
   )
 
-  function markChannelRead(name) {
-    setChannels((prev) => prev.map((c) => (c.name === name ? { ...c, unread: 0 } : c)))
+  async function loadBaseData() {
+    setLoading(true)
+    try {
+      const [membersRes, channelsRes] = await Promise.all([
+        getTeamMembers(),
+        getTeamChannels(),
+      ])
+      setTeamMembers(membersRes.data)
+      setChannels(channelsRes.data)
+      if (!selectedChannelId && channelsRes.data.length > 0) {
+        setSelectedChannelId(channelsRes.data[0].id)
+      }
+    } catch (error) {
+      console.error('Failed to load collaboration data', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadChannelUpdates(channelId) {
+    if (!channelId) return
+    try {
+      const res = await getChannelUpdates(channelId)
+      setUpdates(res.data)
+    } catch (error) {
+      console.error('Failed to load channel updates', error)
+    }
+  }
+
+  useEffect(() => {
+    loadBaseData()
+  }, [])
+
+  useEffect(() => {
+    loadChannelUpdates(selectedChannelId)
+  }, [selectedChannelId])
+
+  async function handleAddMember(e) {
+    e.preventDefault()
+    if (!newMember.name.trim() || !newMember.role.trim()) return
+    try {
+      await createTeamMember({
+        ...newMember,
+        email: newMember.email.trim() || null,
+      })
+      setNewMember({ name: '', role: '', email: '', status: 'online' })
+      await loadBaseData()
+    } catch (error) {
+      console.error('Failed to create team member', error)
+    }
+  }
+
+  async function handleDeleteMember(memberId) {
+    try {
+      await deleteTeamMember(memberId)
+      await loadBaseData()
+    } catch (error) {
+      console.error('Failed to delete member', error)
+    }
+  }
+
+  async function handleAddChannel(e) {
+    e.preventDefault()
+    if (!newChannel.name.trim()) return
+    try {
+      await createTeamChannel(newChannel)
+      setNewChannel({ name: '', topic: '' })
+      await loadBaseData()
+    } catch (error) {
+      console.error('Failed to create channel', error)
+    }
+  }
+
+  async function handlePostUpdate(e) {
+    e.preventDefault()
+    if (!selectedChannelId || !newUpdate.trim()) return
+    setPosting(true)
+    try {
+      const memberId = teamMembers[0]?.id || null
+      await createChannelUpdate(selectedChannelId, {
+        message: newUpdate.trim(),
+        member_id: memberId,
+      })
+      setNewUpdate('')
+      await Promise.all([loadBaseData(), loadChannelUpdates(selectedChannelId)])
+    } catch (error) {
+      console.error('Failed to post update', error)
+    } finally {
+      setPosting(false)
+    }
   }
 
   return (
@@ -59,31 +145,24 @@ export default function CollaborationSpace() {
                   <Users size={14} /> Team Collaboration Space
                 </p>
                 <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight">
-                  The all-in-one mission room for your team.
+                  Backend-powered mission room for your team.
                 </h1>
                 <p className="text-indigo-100/90 text-sm md:text-base leading-relaxed">
-                  Conversations, documents, tasks, rituals, and accountability in one beautiful place. 
-                  Keep everyone aligned, move faster, and celebrate progress together.
+                  Live members, real channels, and persistent updates are now saved in your backend.
                 </p>
               </div>
 
               <div className="w-full sm:w-auto grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3 min-w-[150px]">
                   <p className="text-xs uppercase tracking-wider text-indigo-100/80">Live members</p>
-                  <p className="text-2xl font-bold text-white">39</p>
+                  <p className="text-2xl font-bold text-white">{teamMembers.length}</p>
                 </div>
                 <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3 min-w-[150px]">
-                  <p className="text-xs uppercase tracking-wider text-indigo-100/80">Unread updates</p>
-                  <p className="text-2xl font-bold text-white">{totalUnread}</p>
+                  <p className="text-xs uppercase tracking-wider text-indigo-100/80">Total updates</p>
+                  <p className="text-2xl font-bold text-white">{totalUpdates}</p>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-4 p-4 md:p-6 bg-white/70">
-            <QuickAction icon={Video} title="Start huddle" subtitle="Jump into an instant call" />
-            <QuickAction icon={LinkIcon} title="Share update" subtitle="Post progress for your squad" />
-            <QuickAction icon={BrainCircuit} title="AI recap" subtitle="Summarize what changed today" />
           </div>
         </div>
 
@@ -94,37 +173,43 @@ export default function CollaborationSpace() {
                 <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
                   <MessageCircle size={16} className="text-indigo-600" /> Active Collaboration Channels
                 </h2>
-                <button className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-                  <Plus size={14} /> New Channel
-                </button>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-3">
-                {channels.map((channel) => {
-                  const Icon = channel.icon
-                  return (
-                    <button
-                      key={channel.name}
-                      onClick={() => markChannelRead(channel.name)}
-                      className="text-left rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all bg-white p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${channel.color} text-white flex items-center justify-center shadow-sm`}>
-                          <Icon size={16} />
-                        </div>
-                        {channel.unread > 0 && (
-                          <span className="text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-full px-2 py-0.5">
-                            {channel.unread} new
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-3 text-sm font-semibold text-gray-900">{channel.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">{channel.topic}</p>
-                      <p className="text-[11px] text-gray-400 mt-3">{channel.active} members active now</p>
-                    </button>
-                  )
-                })}
+              <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                {channels.map((channel) => (
+                  <button
+                    key={channel.id}
+                    onClick={() => setSelectedChannelId(channel.id)}
+                    className={`text-left rounded-xl border transition-all bg-white p-4 ${
+                      selectedChannelId === channel.id
+                        ? 'border-indigo-300 shadow-md'
+                        : 'border-gray-100 hover:border-indigo-200 hover:shadow-md'
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-gray-900">{channel.name}</p>
+                    <p className="text-xs text-gray-500 mt-1">{channel.topic || 'No topic set'}</p>
+                    <p className="text-[11px] text-gray-400 mt-3">{channel.updates || 0} updates</p>
+                  </button>
+                ))}
               </div>
+
+              <form onSubmit={handleAddChannel} className="grid md:grid-cols-3 gap-2">
+                <input
+                  value={newChannel.name}
+                  onChange={(e) => setNewChannel((prev) => ({ ...prev, name: e.target.value }))}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  placeholder="New channel name"
+                />
+                <input
+                  value={newChannel.topic}
+                  onChange={(e) => setNewChannel((prev) => ({ ...prev, topic: e.target.value }))}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  placeholder="Topic"
+                />
+                <button className="inline-flex items-center justify-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+                  <Plus size={14} /> Add Channel
+                </button>
+              </form>
             </section>
 
             <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5 md:p-6">
@@ -145,63 +230,125 @@ export default function CollaborationSpace() {
                 ))}
               </div>
             </section>
+
+            <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5 md:p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Send size={15} className="text-indigo-600" /> Channel Updates
+              </h3>
+              {selectedChannelId ? (
+                <>
+                  <form onSubmit={handlePostUpdate} className="flex gap-2 mb-3">
+                    <input
+                      value={newUpdate}
+                      onChange={(e) => setNewUpdate(e.target.value)}
+                      className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                      placeholder="Post update to selected channel"
+                    />
+                    <button
+                      disabled={posting}
+                      className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                    >
+                      {posting ? 'Posting...' : 'Post'}
+                    </button>
+                  </form>
+
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {updates.length === 0 && (
+                      <p className="text-xs text-gray-500">No updates yet for this channel.</p>
+                    )}
+                    {updates.map((update) => (
+                      <div key={update.id} className="rounded-lg border border-gray-100 px-3 py-2">
+                        <p className="text-sm text-gray-800">{update.message}</p>
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          by {update.member_name} • {new Date(update.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500">Create or select a channel to begin collaboration.</p>
+              )}
+            </section>
           </div>
 
           <div className="space-y-6">
             <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
               <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <ShieldCheck size={16} className="text-emerald-600" /> Presence Board
+                <ShieldCheck size={16} className="text-emerald-600" /> Team Members
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-3 mb-3">
                 {teamMembers.map((member) => (
-                  <div key={member.name} className="rounded-xl border border-gray-100 px-3 py-2.5">
+                  <div key={member.id} className="rounded-xl border border-gray-100 px-3 py-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-medium text-gray-900">{member.name}</p>
                         <p className="text-xs text-gray-500">{member.role}</p>
                       </div>
-                      <span className={`w-2.5 h-2.5 rounded-full ${member.dot}`} />
+                      <button
+                        onClick={() => handleDeleteMember(member.id)}
+                        className="text-gray-400 hover:text-rose-500"
+                        title="Delete member"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">{member.status}</p>
+                    <p className="text-xs text-gray-400 mt-2">{member.status}{member.email ? ` • ${member.email}` : ''}</p>
                   </div>
                 ))}
               </div>
-            </section>
 
-            <section className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-purple-50 p-5">
-              <p className="text-xs uppercase tracking-wider text-indigo-700 font-semibold mb-2">Focus lane</p>
-              <h3 className="text-sm font-semibold text-gray-900">Top priority</h3>
-              <p className="text-sm text-gray-600 mt-1">Finalize onboarding v2 and publish handoff notes by end of day.</p>
-              <button className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900">
-                Open task board <ChevronRight size={14} />
-              </button>
+              <form onSubmit={handleAddMember} className="space-y-2">
+                <input
+                  value={newMember.name}
+                  onChange={(e) => setNewMember((prev) => ({ ...prev, name: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  placeholder="Member name"
+                />
+                <input
+                  value={newMember.role}
+                  onChange={(e) => setNewMember((prev) => ({ ...prev, role: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  placeholder="Role"
+                />
+                <input
+                  value={newMember.email}
+                  onChange={(e) => setNewMember((prev) => ({ ...prev, email: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  placeholder="Email (optional)"
+                />
+                <select
+                  value={newMember.status}
+                  onChange={(e) => setNewMember((prev) => ({ ...prev, status: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                >
+                  <option value="online">online</option>
+                  <option value="focus">focus</option>
+                  <option value="offline">offline</option>
+                </select>
+                <button className="w-full inline-flex items-center justify-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+                  <Plus size={14} /> Add Member
+                </button>
+              </form>
             </section>
 
             <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
               <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <Clock3 size={15} className="text-indigo-600" /> Auto-generated Standup
+                <Clock3 size={15} className="text-indigo-600" /> Status
               </h3>
-              <ul className="space-y-2 text-xs text-gray-600 list-disc pl-5">
-                <li>7 tasks completed across Product, Engineering and Design.</li>
-                <li>2 blockers need leadership input before 12:00 PM.</li>
-                <li>Client delivery stream is 94% on schedule this week.</li>
-              </ul>
+              {loading ? (
+                <p className="text-xs text-gray-500">Loading collaboration workspace...</p>
+              ) : (
+                <ul className="space-y-2 text-xs text-gray-600 list-disc pl-5">
+                  <li>{channels.length} active channels connected to backend.</li>
+                  <li>{teamMembers.length} members available in collaboration roster.</li>
+                  <li>{totalUpdates} persisted updates across channels.</li>
+                </ul>
+              )}
             </section>
           </div>
         </div>
       </section>
     </div>
-  )
-}
-
-function QuickAction({ icon: Icon, title, subtitle }) {
-  return (
-    <button className="rounded-2xl border border-gray-100 bg-white text-left px-4 py-3 hover:border-indigo-200 hover:shadow-sm transition-all">
-      <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center mb-2">
-        <Icon size={15} />
-      </div>
-      <p className="text-sm font-semibold text-gray-900">{title}</p>
-      <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
-    </button>
   )
 }
